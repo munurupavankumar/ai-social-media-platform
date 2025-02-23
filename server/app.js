@@ -131,6 +131,21 @@ if (platform.toLowerCase() === 'twitter' && twitterClient) {
   }
 });
 
+// Express endpoint to get details of a specific post by ID
+app.get('/api/post/:id', async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) {
+      return res.status(404).json({ error: 'Post not found' });
+    }
+    return res.json({ post });
+  } catch (error) {
+    console.error("Error retrieving post:", error);
+    return res.status(500).json({ error: "Error retrieving post" });
+  }
+});
+
+
 /**
  * GET /api/analytics
  * Retrieve all posts and simulate analytics data (views, likes, shares).

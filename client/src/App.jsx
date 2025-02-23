@@ -7,6 +7,7 @@ import Analytics from './components/Analytics';
 import SchedulePost from './components/SchedulePost';
 import AnalyticsChart from './components/AnalyticsChart';
 import ExportAnalytics from './components/ExportAnalytics';
+import PostDetails from './components/PostDetails';
 //import './App.css';
 
 function App() {
@@ -28,6 +29,8 @@ function App() {
         return <AnalyticsChart />;
       case 'export':
         return <ExportAnalytics />;
+      case 'details':
+        return <PostDetails />;
       default:
         return <Trending />;
     }
@@ -45,6 +48,7 @@ function App() {
           <button onClick={() => setView('schedule')}>Schedule Post</button>
           <button onClick={() => setView('chart')}>Analytics Chart</button>
           <button onClick={() => setView('export')}>Export CSV</button>
+          <button onClick={() => setView('details')}>Post Details</button>
         </nav>
       </header>
       <main>{renderView()}</main>
