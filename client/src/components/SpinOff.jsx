@@ -4,22 +4,23 @@ import axios from 'axios';
 
 function SpinOff() {
   const [videoPath, setVideoPath] = useState('');
-  const [overlayText, setOverlayText] = useState('');
+  const [platform, setPlatform] = useState('instagram');
   const [result, setResult] = useState(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    // Send only video_path and platform to the endpoint
     axios.post('http://localhost:5000/api/spinoff', {
       video_path: videoPath,
-      template: { overlay_text: overlayText }
+      platform: platform
     })
-      .then(response => {
-        setResult(response.data);
-      })
-      .catch(error => {
-        console.error("Error creating spin-off video", error);
-        setResult({ error: "Failed to create spin-off video" });
-      });
+    .then(response => {
+      setResult(response.data);
+    })
+    .catch(error => {
+      console.error("Error creating spin-off video", error);
+      setResult({ error: "Failed to create spin-off video" });
+    });
   };
 
   return (
@@ -32,17 +33,18 @@ function SpinOff() {
             type="text" 
             value={videoPath} 
             onChange={(e) => setVideoPath(e.target.value)} 
-            placeholder="Enter video path (e.g., downloads/sample_video.mp4)" 
+            placeholder="Enter video path (e.g., downloads/video.mp4)" 
           />
         </div>
         <div>
-          <label>Overlay Text:</label>
-          <input 
-            type="text" 
-            value={overlayText} 
-            onChange={(e) => setOverlayText(e.target.value)} 
-            placeholder="Enter overlay text" 
-          />
+          <label>Platform:</label>
+          <select value={platform} onChange={(e) => setPlatform(e.target.value)}>
+            <option value="twitter">Twitter</option>
+            <option value="instagram">Instagram</option>
+            <option value="youtube">YouTube</option>
+            <option value="pinterest">Pinterest</option>
+            <option value="facebook">Facebook</option>
+          </select>
         </div>
         <button type="submit">Create Spin-Off</button>
       </form>

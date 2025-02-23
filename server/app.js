@@ -4,6 +4,8 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
 const { TwitterApi } = require('twitter-api-v2');
 const cors = require('cors');
 
@@ -81,38 +83,37 @@ app.post('/api/post', async (req, res) => {
   }
 
   // If platform is Twitter and Twitter client is initialized, post to Twitter
-  // If platform is Twitter and Twitter client is initialized, post to Twitter
-if (platform.toLowerCase() === 'twitter' && twitterClient) {
-  try {
-    // Construct tweet content using title, description, and keywords
-    const tweetText = `${title}\n\n${description}\n\nKeywords: ${keywords.join(', ')}`;
-    console.log("Tweet text being sent:", tweetText);
+  if (platform.toLowerCase() === 'twitter' && twitterClient) {
+    try {
+      // Construct tweet content using title, description, and keywords
+      const tweetText = `${title}\n\n${description}\n\nKeywords: ${keywords.join(', ')}`;
+      console.log("Tweet text being sent:", tweetText);
 
-    let mediaIds = [];
-    // Check if the video file exists; if so, upload it
-    if (fs.existsSync(videoPath)) {
-      console.log("Video file found. Uploading media...");
-      const mediaId = await twitterClient.v1.uploadMedia(videoPath);
-      mediaIds.push(mediaId);
-      console.log("Media uploaded. Media ID:", mediaId);
-    } else {
-      console.log("Video file not found. Proceeding without media.");
+      let mediaIds = [];
+      // Check if the video file exists; if so, upload it
+      if (fs.existsSync(videoPath)) {
+        console.log("Video file found. Uploading media...");
+        const mediaId = await twitterClient.v1.uploadMedia(videoPath);
+        mediaIds.push(mediaId);
+        console.log("Media uploaded. Media ID:", mediaId);
+      } else {
+        console.log("Video file not found. Proceeding without media.");
+      }
+
+      // Prepare the tweet payload for API V2
+      const tweetPayload = {
+        text: tweetText,
+        ...(mediaIds.length > 0 && { media: { media_ids: mediaIds } }), // Attach media IDs if available
+      };
+
+      // Post the tweet using API V2
+      const tweetResponse = await twitterClient.v2.tweet(tweetPayload);
+      return res.json({ message: "Tweet posted successfully", tweet: tweetResponse });
+    } catch (error) {
+      console.error("Error posting tweet:", error);
+      return res.status(500).json({ error: "Twitter post failed", details: error.toString() });
     }
-
-    // Prepare the tweet payload for API V2
-    const tweetPayload = {
-      text: tweetText,
-      ...(mediaIds.length > 0 && { media: { media_ids: mediaIds } }), // Attach media IDs if available
-    };
-
-    // Post the tweet using API V2
-    const tweetResponse = await twitterClient.v2.tweet(tweetPayload);
-    return res.json({ message: "Tweet posted successfully", tweet: tweetResponse });
-  } catch (error) {
-    console.error("Error posting tweet:", error);
-    return res.status(500).json({ error: "Twitter post failed", details: error.toString() });
-  }
-}  else {
+  } else {
     // Otherwise, simulate posting by storing the post in MongoDB
     try {
       const newPost = new Post({
@@ -225,7 +226,7 @@ app.get('/api/export-analytics', async (req, res) => {
     // Start building the CSV content
     // Define the CSV header
     let csvData = "postId,videoPath,title,description,platform,datePosted,views,likes,shares,suggestion\n";
-    
+
     // Loop through each post to generate CSV rows
     posts.forEach(post => {
       // For demonstration purposes, we'll simulate engagement metrics.
@@ -237,7 +238,7 @@ app.get('/api/export-analytics', async (req, res) => {
 
       // Clean fields to avoid CSV formatting issues (e.g., commas in text)
       const clean = (text) => `"${String(text).replace(/"/g, '""')}"`;
-      
+
       csvData += [
         clean(post._id),
         clean(post.videoPath),
@@ -266,14 +267,14 @@ app.get('/api/export-analytics', async (req, res) => {
 
 app.post('/api/schedulePost', (req, res) => {
   const { videoPath, title, description, keywords, platform, delay } = req.body;
-  
+
   if (!videoPath || !title || !platform || typeof delay !== 'number') {
     return res.status(400).json({ error: "videoPath, title, platform, and delay (in seconds) are required" });
   }
-  
+
   // Immediately respond to the client
   res.json({ message: `Post scheduled in ${delay} seconds` });
-  
+
   // Use setTimeout to simulate scheduling a post
   setTimeout(async () => {
     try {
