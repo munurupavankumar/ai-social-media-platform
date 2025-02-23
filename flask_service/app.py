@@ -1,12 +1,9 @@
 # app.py
-from flask import Flask, jsonify, request  # We'll need this later for real scraping
-from bs4 import BeautifulSoup  # Also for future scraping implementation
+from flask import Flask, jsonify, request, Response  # We'll need this later for real scraping
 import subprocess
 import os
-import json
-import re
 from flask_cors import CORS
-import requests  # Add this import for API calls
+from openai import OpenAI
 
 app = Flask(__name__)
 CORS(app)
@@ -130,6 +127,69 @@ def create_spin_off():
     except Exception as e:
         return jsonify({"error": "Failed to create spin-off video", "details": str(e)}), 500
 
+@app.route('/api/metadata_stream', methods=['POST'])
+def generate_metadata_stream():
+    """
+    This endpoint generates metadata (creative title, description, and keywords)
+    for a given content description using an AI API and streams the output.
+    
+    Expected JSON payload:
+    {
+        "content": "Your content description here..."
+    }
+    """
+    data = request.get_json()
+    content = data.get("content")
+    if not content:
+        return jsonify({"error": "Field 'content' is required"}), 400
+
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        return jsonify({"error": "GITHUB_TOKEN environment variable not set"}), 500
+
+    # Set the endpoint and model name
+    endpoint = "https://models.inference.ai.azure.com"
+    model_name = "gpt-4o"
+
+    # Create the OpenAI client
+    client = OpenAI(
+        base_url=endpoint,
+        api_key=token,
+    )
+
+    # Prepare the prompt messages for metadata generation
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an assistant that generates creative metadata for social media content."
+        },
+        {
+            "role": "user",
+            "content": f"Generate a creative title, a concise description, and a list of relevant keywords for the following content: {content}"
+        }
+    ]
+
+    try:
+        # Call the chat completion API with streaming enabled
+        response = client.chat.completions.create(
+            messages=messages,
+            model=model_name,
+            temperature=1.0,
+            top_p=1.0,
+            max_tokens=300,
+            stream=True,
+            stream_options={'include_usage': True}
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # Generator function to stream the response token-by-token
+    def generate():
+        for update in response:
+            if update.choices and update.choices[0].delta:
+                yield update.choices[0].delta.content or ""
+    
+    return Response(generate(), mimetype='text/plain')
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True, use_reloader=False)

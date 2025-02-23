@@ -1,0 +1,4 @@
+postId,videoPath,title,description,platform,datePosted,views,likes,shares,suggestion
+"67b5b9f85651147116c0e268","downloads/sample_video_spinoff.mp4","My Awesome Spin-Off","A spin-off video with creative overlay.","Instagram","Wed Feb 19 2025 16:31:12 GMT+0530 (India Standard Time)",808,181,30,"Strong engagement, maintain your strategy!"
+"67b5c19fd68bf45e5bb445b8","/home/art/ai-social-media-platform/flask_service/downloads/sample_video.mp4","nood banda","kute ki time ayi","instagram","Wed Feb 19 2025 17:03:51 GMT+0530 (India Standard Time)",742,242,92,"Strong engagement, maintain your strategy!"
+"67b5c2cf6ced1d2e11d119cd","/home/art/ai-social-media-platform/flask_service/downloads/sample_video.mp4","kya ha time","time par anna chahie","facebook","Wed Feb 19 2025 17:08:55 GMT+0530 (India Standard Time)",202,235,73,"Strong engagement, maintain your strategy!"
