@@ -91,9 +91,10 @@ app.post('/api/post', async (req, res) => {
 
       let mediaIds = [];
       // Check if the video file exists; if so, upload it
-      if (fs.existsSync(videoPath)) {
+      const fullPath = path.join(__dirname, '..', 'flask_service', 'downloads', path.basename(videoPath));
+      if (fs.existsSync(fullPath)) {
         console.log("Video file found. Uploading media...");
-        const mediaId = await twitterClient.v1.uploadMedia(videoPath);
+        const mediaId = await twitterClient.v1.uploadMedia(fullPath);
         mediaIds.push(mediaId);
         console.log("Media uploaded. Media ID:", mediaId);
       } else {
