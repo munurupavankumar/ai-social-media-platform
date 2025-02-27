@@ -136,18 +136,27 @@ Please output the title on the first line, the description on the second line, a
 
     // Prepare the post data
     const postData = {
-      videoPath,
+      videoPath: videoPath.startsWith('downloads/') ? videoPath : `downloads/${videoPath}`,
       title: autoTitle,
       description: autoDescription,
       keywords: keywordsArray,
-      platform
+      platform: platform
     };
 
     console.log(`Sending ${platform} post data:`, postData);
     setUploadProgress(25);
 
+    console.log('Sending post data:', {
+      url: 'http://localhost:3000/api/post',
+      data: postData,
+    });
+
     try {
-      const response = await axios.post('http://localhost:3000/api/post', postData);
+      const response = await axios.post('http://localhost:3000/api/post', postData, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       console.log(`${platform} post response:`, response.data);
       setResult(response.data);
       setUploadProgress(100);
@@ -160,24 +169,19 @@ Please output the title on the first line, the description on the second line, a
         // setMetadataGenerated(false);
       }
     } catch (error) {
-      console.error(`Error posting to ${platform}:`, error.response?.data || error.message);
+      console.error('Post request error:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       
-      // Detailed error handling for Instagram specific errors
-      if (platform === 'Instagram' && error.response?.data) {
-        const errorData = error.response.data;
-        
-        if (errorData.error === "Instagram cannot access video") {
-          setPostError(`Instagram Error: ${errorData.details} ${errorData.suggestions?.join(' ')}`);
-        } else if (errorData.error === "File too large" || errorData.error === "Invalid file format") {
-          setPostError(`Instagram Error: ${errorData.details}`);
-        } else {
-          setPostError(errorData.error || "Failed to post to Instagram");
-        }
-      } else {
-        setPostError(error.response?.data?.error || `Failed to post to ${platform}`);
-      }
-      
-      setResult({ error: error.response?.data || `Failed to post to ${platform}` });
+      const errorMessage = error.response?.data?.details || 
+                          error.response?.data?.error || 
+                          error.message || 
+                          'Unknown error occurred';
+                          
+      setPostError(`${platform} posting failed: ${errorMessage}`);
+      setResult(error.response?.data || { error: errorMessage });
     } finally {
       setIsPosting(false);
     }
