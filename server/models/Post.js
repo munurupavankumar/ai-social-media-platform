@@ -11,7 +11,8 @@ const postSchema = new mongoose.Schema({
   datePosted: { type: Date, default: Date.now },
   tweetId: { type: String }, // For Twitter posts
   instagramPostId: { type: String }, // For Instagram posts
-  facebookPostId: { type: String } // For Facebook posts
+  facebookPostId: { type: String }, // For Facebook posts
+  threadsPostId: { type: String } // For Threads posts
 });
 
 const Post = mongoose.model('Post', postSchema);

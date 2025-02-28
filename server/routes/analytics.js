@@ -18,6 +18,7 @@ router.get('/analytics', async (req, res) => {
     // For each post, fetch real metrics if applicable; otherwise, simulate data.
     const analytics = await Promise.all(posts.map(async (post) => {
       let metrics = {};
+      let suggestion = '';
 
       if (post.platform.toLowerCase() === 'twitter' && post.tweetId && twitterService.isInitialized()) {
         try {
@@ -69,6 +70,19 @@ router.get('/analytics', async (req, res) => {
           };
         }
       } 
+      else if (post.platform.toLowerCase() === 'threads') {
+        // Simulate metrics for Threads posts
+        metrics = {
+          impressions: Math.floor(Math.random() * 1000) + 100,
+          replies: Math.floor(Math.random() * 50),
+          likes: Math.floor(Math.random() * 500),
+          shares: Math.floor(Math.random() * 100)
+        };
+
+        const likeRatio = metrics.likes / (metrics.replies + 1);
+        suggestion = likeRatio < 0.5 ? 'Your thread engagement seems low. Consider enhancing interaction.' 
+                                     : 'Good engagement on threads!';
+      }
       else {
         // For other platforms or simulated posts, generate random engagement numbers
         metrics = {
@@ -76,17 +90,17 @@ router.get('/analytics', async (req, res) => {
           likes: Math.floor(Math.random() * 300),
           shares: Math.floor(Math.random() * 100)
         };
+
+        const likeRatio = metrics.likes / (metrics.views + 1);
+        suggestion = likeRatio < 0.1 ? 'Consider enhancing post interactivity.' : 'Strong engagement, maintain your strategy!';
       }
 
-      // Generate a suggestion based on the metrics
-      let suggestion = '';
+      // Generate suggestions for Twitter and Facebook if not already set by threads branch
       if (post.platform.toLowerCase() === 'twitter' && metrics.like_count !== undefined) {
-        // If using Twitter metrics
         const likeRatio = metrics.like_count / (metrics.retweet_count + metrics.reply_count + 1);
         suggestion = likeRatio < 0.5 ? 'Improve engagement by refining your tweet content.' : 'Good performance! Keep up the creative work.';
       } 
       else if (post.platform.toLowerCase() === 'facebook' && metrics.total_reactions !== undefined) {
-        // If using Facebook metrics
         const engagementRate = metrics.total_reactions / (metrics.impressions || 1) * 100;
         if (engagementRate < 1) {
           suggestion = 'Engagement rate is low. Consider more engaging content or posting at different times.';
@@ -95,11 +109,6 @@ router.get('/analytics', async (req, res) => {
         } else {
           suggestion = 'Strong engagement rate! This content format is resonating with your audience.';
         }
-      } 
-      else {
-        // For simulated metrics
-        const likeRatio = metrics.likes / (metrics.views + 1);
-        suggestion = likeRatio < 0.1 ? 'Consider enhancing post interactivity.' : 'Strong engagement, maintain your strategy!';
       }
 
       return {
@@ -131,12 +140,11 @@ router.get('/export-analytics', async (req, res) => {
     const posts = await Post.find({});
 
     // Start building the CSV content
-    // Define the CSV header - now with Facebook metrics
+    // Define the CSV header - now with Facebook and Threads metrics
     let csvData = "postId,videoPath,title,description,platform,datePosted,views/impressions,likes/reactions,shares,clicks,suggestion\n";
 
     // Loop through each post to generate CSV rows
     posts.forEach(post => {
-      // Generate metrics based on platform, or simulate if needed
       let metrics = {};
       let suggestion = "";
       
@@ -152,26 +160,56 @@ router.get('/export-analytics', async (req, res) => {
         suggestion = engagementRate < 1 ? 
           "Improve engagement with more interactive content." : 
           "Good engagement rate, maintain your strategy!";
-      } else {
+      } 
+      else if (post.platform.toLowerCase() === 'threads') {
+        // For Threads posts, simulate metrics
+        metrics = {
+          impressions: Math.floor(Math.random() * 1000) + 100,
+          likes: Math.floor(Math.random() * 500),
+          replies: Math.floor(Math.random() * 50),
+          shares: Math.floor(Math.random() * 100)
+        };
+        const likeRatio = metrics.likes / (metrics.replies + 1);
+        suggestion = likeRatio < 0.5 ? 
+          "Thread engagement is low. Consider boosting your content strategy." : 
+          "Threads engagement looks solid!";
+      }
+      else {
         // For other platforms, use generic metrics
         metrics = {
           views: Math.floor(Math.random() * 900) + 100,
           likes: Math.floor(Math.random() * 300),
           shares: Math.floor(Math.random() * 100)
         };
-        const likeRatio = metrics.likes / metrics.views;
+        const likeRatio = metrics.likes / (metrics.views + 1);
         suggestion = likeRatio < 0.1 ? 
           "Consider enhancing post interactivity." : 
           "Strong engagement, maintain your strategy!";
       }
 
-      // Clean fields to avoid CSV formatting issues (e.g., commas in text)
+      // Clean fields to avoid CSV formatting issues
       const clean = (text) => `"${String(text).replace(/"/g, '""')}"`;
 
-      // Use the appropriate metric names based on platform
-      const viewsOrImpressions = post.platform.toLowerCase() === 'facebook' ? metrics.impressions : metrics.views;
-      const likesOrReactions = post.platform.toLowerCase() === 'facebook' ? metrics.reactions : metrics.likes;
-      const clicks = metrics.clicks || 0;
+      // Choose the appropriate metric names based on platform.
+      let viewsOrImpressions, likesOrReactions, shares, clicks;
+      if (post.platform.toLowerCase() === 'facebook') {
+        viewsOrImpressions = metrics.impressions;
+        likesOrReactions = metrics.reactions;
+        shares = metrics.shares;
+        clicks = metrics.clicks;
+      }
+      else if (post.platform.toLowerCase() === 'threads') {
+        viewsOrImpressions = metrics.impressions;
+        likesOrReactions = metrics.likes;
+        shares = metrics.shares;
+        clicks = 0; // No clicks metric for Threads
+      }
+      else {
+        viewsOrImpressions = metrics.views;
+        likesOrReactions = metrics.likes;
+        shares = metrics.shares;
+        clicks = 0;
+      }
 
       csvData += [
         clean(post._id),
@@ -182,7 +220,7 @@ router.get('/export-analytics', async (req, res) => {
         clean(post.datePosted),
         viewsOrImpressions,
         likesOrReactions,
-        metrics.shares,
+        shares,
         clicks,
         clean(suggestion)
       ].join(",") + "\n";

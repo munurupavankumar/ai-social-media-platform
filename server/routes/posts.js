@@ -5,10 +5,11 @@ const Post = require('../models/Post');
 const twitterService = require('../services/twitter');
 const instagramService = require('../services/instagram');
 const facebookService = require('../services/facebook');
+const threadsService = require('../services/threads');
 
 /**
  * POST /api/post
- * Post content to a social media platform (Twitter, Instagram, Facebook), or simulate posting.
+ * Post content to a social media platform (Twitter, Instagram, Facebook, Threads), or simulate posting.
  */
 router.post('/post', async (req, res) => {
   const { videoPath, title, description, keywords, platform } = req.body;
@@ -29,6 +30,10 @@ router.post('/post', async (req, res) => {
   // Facebook posting
   else if (platform.toLowerCase() === 'facebook' && process.env.FACEBOOK_PAGE_ID && process.env.FACEBOOK_ACCESS_TOKEN) {
     return facebookService.postToFacebook(req, res);
+  }
+  // Threads posting
+  else if (platform.toLowerCase() === 'threads' && process.env.THREADS_ACCESS_TOKEN && process.env.THREADS_USER_ID) {
+    return threadsService.postToThreads(req, res);
   }
   // Simulate posting for other platforms
   else {
