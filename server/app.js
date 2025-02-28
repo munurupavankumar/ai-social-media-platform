@@ -350,6 +350,12 @@ app.post('/api/post', async (req, res) => {
   
   // Facebook posting (new)
   else if (platform.toLowerCase() === 'facebook' && process.env.FACEBOOK_PAGE_ID && process.env.FACEBOOK_ACCESS_TOKEN) {
+    console.log('Platform check:', {
+      platform: platform.toLowerCase(),
+      hasFacebookPageId: !!process.env.FACEBOOK_PAGE_ID,
+      hasFacebookToken: !!process.env.FACEBOOK_ACCESS_TOKEN,
+      condition: platform.toLowerCase() === 'facebook' && process.env.FACEBOOK_PAGE_ID && process.env.FACEBOOK_ACCESS_TOKEN
+    });
     try {
       const videoFileName = path.basename(videoPath);
       
