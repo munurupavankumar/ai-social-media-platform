@@ -56,9 +56,24 @@ const postToThreads = async (req, res) => {
       );
     } catch (containerError) {
       console.error("Error creating media container:", containerError.response?.data || containerError.message);
+      
+      // Check for URL access issues
+      const errorMsg = containerError.response?.data?.error?.message || containerError.message;
+      if (errorMsg.includes('Unable to download media file')) {
+        return res.status(400).json({
+          error: "Threads cannot access video",
+          details: "Threads servers cannot access your video file. This may be because ngrok connection is not stable or has changed.",
+          suggestions: [
+            "1. Check if your ngrok URL is still active",
+            "2. Make sure the video file is accessible through your browser at " + videoUrl,
+            "3. Try restarting ngrok to get a new URL"
+          ]
+        });
+      }
+      
       return res.status(500).json({
         error: "Failed to create Threads media container",
-        details: containerError.response?.data?.error?.message || containerError.message,
+        details: errorMsg,
         rawError: containerError.response?.data || null
       });
     }
@@ -66,77 +81,150 @@ const postToThreads = async (req, res) => {
     const containerId = mediaResponse.data.id;
     console.log(`Media container created with ID: ${containerId}`);
     
-    // Wait for media processing (10 seconds)
-    console.log("Waiting for media processing...");
-    await new Promise(resolve => setTimeout(resolve, 10000));
+    // Step 2: Check the media container status with exponential backoff
+    // Implementation similar to Instagram service
+    const statusEndpoint = `https://graph.threads.net/v1.0/${containerId}?fields=status_code,status&access_token=${accessToken}`;
+    let status = '';
+    let statusDetail = '';
+    const maxAttempts = 30; // Increased from original 5 retries
+    let attempt = 0;
+    let waitTime = 5000; // Start with 5 seconds
     
-    // Step 2: Publish the media container with automated polling
-    console.log("Publishing media to Threads...");
-
-    let publishResponse;
-    let retries = 5;
-    while (retries > 0) {
+    console.log("Checking media processing status...");
+    while (attempt < maxAttempts) {
+      attempt++;
+      
       try {
-        publishResponse = await axios.post(
-          publishEndpoint,
-          { creation_id: containerId },
-          {
-            headers: {
-              "Authorization": `Bearer ${accessToken}`,
-              "Content-Type": "application/json"
-            }
+        const statusResponse = await axios.get(statusEndpoint, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
           }
+        });
+        
+        status = statusResponse.data.status_code || statusResponse.data.status;
+        statusDetail = statusResponse.data.status || 'No detailed status available';
+        
+        console.log(`Attempt ${attempt}/${maxAttempts}: Media status: ${status}. Detail: ${statusDetail}`);
+        
+        if (status === 'FINISHED' || status === 'READY') {
+          console.log("Media processing completed successfully!");
+          break; // Exit the loop when the media is ready
+        }
+        
+        if (status === 'ERROR' || status === 'EXPIRED') {
+          // Check for common error patterns
+          if (statusDetail.includes('access') || statusDetail.includes('download')) {
+            return res.status(400).json({
+              error: "Threads cannot access video",
+              details: "Threads servers cannot access your video file. This may be because ngrok connection is not stable or has changed.",
+              suggestions: [
+                "1. Check if your ngrok URL is still active",
+                "2. Make sure the video file is accessible through your browser at " + videoUrl,
+                "3. Try restarting ngrok to get a new URL"
+              ]
+            });
+          } else {
+            throw new Error(`Media processing failed with status: ${status}. Detail: ${statusDetail}`);
+          }
+        }
+        
+        // Wait with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        waitTime = Math.min(waitTime * 1.5, 30000); // Increase wait time, max 30 seconds
+      } catch (statusError) {
+        console.error(`Error checking media status (attempt ${attempt}/${maxAttempts}):`, 
+          statusError.response?.data || statusError.message
         );
-        // If the publish call succeeded, break out of the loop.
-        break;
-      } catch (error) {
-        // Check if error message indicates the media isn't ready.
-        const errorMsg = error.response?.data?.error?.message || error.message;
-        if (errorMsg.includes('Media not found')) {
-          console.log(`Media not available yet. Retrying in 3 seconds...`);
-          retries--;
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        } else {
-          // For other errors, exit immediately.
-          console.error("Error publishing to Threads:", errorMsg);
+        
+        // If we've hit the max attempts, throw the error
+        if (attempt >= maxAttempts) {
           return res.status(500).json({
-            error: "Failed to publish to Threads",
-            details: errorMsg
+            error: "Media processing timeout",
+            details: `Failed to check media status after ${maxAttempts} attempts`,
+            lastError: statusError.response?.data?.error?.message || statusError.message
           });
         }
+        
+        // Otherwise, wait and retry
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        waitTime = Math.min(waitTime * 1.5, 30000);
       }
     }
-
-    if (!publishResponse) {
+    
+    // Step 3: Check if the media is ready, otherwise return an error
+    if (status !== 'FINISHED' && status !== 'READY') {
+      return res.status(500).json({
+        error: "Media processing failed",
+        details: `Final status: ${status}. Detail: ${statusDetail}`
+      });
+    }
+    
+    // Step 4: Publish the media container
+    console.log("Publishing media to Threads...");
+    let publishResponse;
+    try {
+      publishResponse = await axios.post(
+        publishEndpoint,
+        { creation_id: containerId },
+        {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+      
+      console.log("Threads publish response:", publishResponse.data);
+    } catch (publishError) {
+      console.error("Error publishing to Threads:", 
+        publishError.response?.data || publishError.message
+      );
       return res.status(500).json({
         error: "Failed to publish to Threads",
-        details: "Media was not processed in time."
+        details: publishError.response?.data?.error?.message || publishError.message,
+        rawError: publishError.response?.data || null
       });
     }
 
-    console.log("Threads publish response:", publishResponse.data);
+    // Step 5: Save to database with error handling
+    try {
+      const newPost = new Post({
+        videoPath,
+        title,
+        description,
+        keywords,
+        platform: 'threads',
+        threadsPostId: publishResponse.data.id
+      });
+      const savedPost = await newPost.save();
 
-    // Save to database
-    const newPost = new Post({
-      videoPath,
-      title,
-      description,
-      keywords,
-      platform: 'threads',
-      threadsPostId: publishResponse.data.id
-    });
-    const savedPost = await newPost.save();
-
-    return res.json({
-      message: "Threads video posted successfully",
-      post: savedPost,
-      threadsPostId: publishResponse.data.id
-    });
+      return res.json({
+        message: "Threads video posted successfully",
+        post: savedPost,
+        threadsPostId: publishResponse.data.id
+      });
+    } catch (dbError) {
+      console.error("Error saving post to database:", dbError);
+      // Still return success since the post was published, just not saved
+      return res.json({ 
+        message: "Threads video posted successfully, but failed to save to database", 
+        threadsPostId: publishResponse.data.id,
+        dbError: dbError.message
+      });
+    }
   } catch (error) {
-    console.error("Error posting to Threads:", error);
+    console.error("Error posting to Threads:", 
+      error.response ? {
+        data: error.response.data,
+        status: error.response.status
+      } : error
+    );
+    
     return res.status(500).json({ 
       error: "Threads post failed", 
-      details: error.message || error.toString()
+      details: error.message || error.toString(),
+      response: error.response?.data || null
     });
   }
 };

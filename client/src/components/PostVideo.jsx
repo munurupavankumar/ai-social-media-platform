@@ -246,7 +246,7 @@ Please output the title on the first line, the description on the second line, a
           >
             <option value="Twitter">Twitter</option>
             <option value="Instagram">Instagram</option>
-            <option value="YouTube">YouTube</option>
+            <option value="threads">Threads</option>
             <option value="Pinterest">Pinterest</option>
             <option value="Facebook">Facebook</option>
           </select>
