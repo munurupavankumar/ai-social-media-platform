@@ -39,7 +39,7 @@ const postToTwitter = async (req, res) => {
   const { videoPath, title, description, keywords } = req.body;
   
   try {
-    const tweetText = `${title}\n\n${description}\n\nKeywords: ${keywords.join(', ')}`;
+    const tweetText = `${title}\n\n${description}\n\n${keywords.join(', ')}`;
     console.log("Tweet text being sent:", tweetText);
 
     let mediaIds = [];
